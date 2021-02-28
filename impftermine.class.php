@@ -5,15 +5,20 @@
      * 
      * @author      Sebastian Fuhrmann <sebastian.fuhrmann@rz-fuhrmann.de>
      * @copyright   (C) 2020-2021 Rechenzentrum Fuhrmann Inh. Sebastian Fuhrmann
+     * @version     2021-02-28
      * 
      * Roadmap:
      * - add/improve caching
      * - clean-up code
      * - add examples and helper functions for looping through vaccination centers and vaccines
      * - add logging
+     * - fix naming, don't just pass the property names from web service
+     * - add debug mode
      */
     class Impftermine {
         private $cachingDir = __DIR__.'/cache/';
+
+        private $endpointStatic = 'https://www.impfterminservice.de/assets/static/';
 
         public function __construct(){
             
@@ -65,7 +70,7 @@
          */
         public function getVaccines (){
             $list = $this->doRequest(
-                        'https://www.impfterminservice.de/assets/static/its/vaccination-list.json', 
+                        $this->endpointStatic.'its/vaccination-list.json', 
                         array(
                             "cachingTime" => 60*60*24     // will not change that often ;)
                         )
@@ -80,12 +85,54 @@
          */
         public function getVaccinationCenters(){
             $list = $this->doRequest(
-                        'https://www.impfterminservice.de/assets/static/impfzentren.json',
+                        $this->endpointStatic.'impfzentren.json',
                         array(
                             "cachingTime" => 60*60*24     // will not change that often ;)
                         )
                     );
             return $list; 
+        }
+
+        public function getVaccinationCenter($countrycode){
+            $centerList = $this->getVaccinationCenters(); 
+            foreach ($centerList as $state => $centers){
+                foreach ($centers as $center){
+                    if ($center["PLZ"] == $countrycode){
+                        return $center; 
+                    }
+                }
+            }
+            return false; 
+        }
+
+        public function getAvailbilityByVaccinationCenter($countrycode){
+            // we need the specific base URL of that center
+            $center = $this->getVaccinationCenter($countrycode);
+            if (!$center){
+                // Exception?
+                return false; 
+            }
+            $res = array(
+                "center" => $center,
+                "vaccines" => []
+            );
+
+            // https://LOCAL_URL/rest/suche/termincheck?plz=PLZ&leistungsmerkmale=L920,L921,L922
+            $vaccines = $this->getVaccines(); 
+            foreach ($vaccines as $vaccine){
+                $avail = $this->doRequest($center["URL"].'rest/suche/termincheck?plz='.$center["PLZ"].'&leistungsmerkmale='.implode(",", array($vaccine["qualification"])));
+                $vaccine["available"] = $avail["termineVorhanden"]?true:false;
+                $res["vaccines"][] = $vaccine;
+            }
+
+            return $res; 
+        }
+
+        // https://001-iz.impfterminservice.de/rest/suche/terminpaare?plz={{PLZ}}
+        // {"gesuchteLeistungsmerkmale":["L922"],"terminpaare":[],"praxen":{}}
+        // unsure, if this already reserves appointments. Therefore not implemented yet. 
+        public function getAppointmentPairs(){
+            return false;
         }
     }
     
