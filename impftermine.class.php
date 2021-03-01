@@ -5,7 +5,8 @@
      * 
      * @author      Sebastian Fuhrmann <sebastian.fuhrmann@rz-fuhrmann.de>
      * @copyright   (C) 2020-2021 Rechenzentrum Fuhrmann Inh. Sebastian Fuhrmann
-     * @version     2021-02-28
+     * @version     2021-03-01
+     * @license     MIT
      * 
      * Roadmap:
      * - add/improve caching
@@ -14,7 +15,11 @@
      * - add logging
      * - fix naming, don't just pass the property names from web service
      * - add debug mode
+     * - getAvailbilityByVaccinationCenterAndVaccine()?
+     * - throw Exceptions
+     * - provide UserAgent
      */
+
     class Impftermine {
         private $cachingDir = __DIR__.'/cache/';
 
@@ -120,7 +125,12 @@
             // https://LOCAL_URL/rest/suche/termincheck?plz=PLZ&leistungsmerkmale=L920,L921,L922
             $vaccines = $this->getVaccines(); 
             foreach ($vaccines as $vaccine){
-                $avail = $this->doRequest($center["URL"].'rest/suche/termincheck?plz='.$center["PLZ"].'&leistungsmerkmale='.implode(",", array($vaccine["qualification"])));
+                $avail = $this->doRequest(
+                            $center["URL"].'rest/suche/termincheck?plz='.$center["PLZ"].'&leistungsmerkmale='.implode(",", array($vaccine["qualification"])),
+                            array(
+                                "cachingTime" => 60*2
+                            )
+                         );
                 $vaccine["available"] = $avail["termineVorhanden"]?true:false;
                 $res["vaccines"][] = $vaccine;
             }
@@ -128,9 +138,29 @@
             return $res; 
         }
 
+        /**
+         * getAvailbilityMatrix()
+         * get appointment availbility for all vaccination centers
+         * PLEASE NOTE: This function will cause a lot (number of active centers * number of available vaccines) request to various impfterminservice.de-Endpoints!
+         * 
+         */
+        public function getAvailbilityMatrix(){
+            $centerList = $this->getVaccinationCenters(); 
+            $res = array(); 
+            foreach ($centerList as $state => $centers){
+                foreach ($centers as $center){
+                    $centerAvailibity = $this->getAvailbilityByVaccinationCenter($center["PLZ"]);
+                    $center["state"] = $state; 
+                    $center["vaccines"] = $centerAvailibity["vaccines"]; 
+                    $res[] = $center; 
+                }
+            }
+            return $res; 
+        }
+
         // https://001-iz.impfterminservice.de/rest/suche/terminpaare?plz={{PLZ}}
         // {"gesuchteLeistungsmerkmale":["L922"],"terminpaare":[],"praxen":{}}
-        // unsure, if this already reserves appointments. Therefore not implemented yet. 
+        // Unsure, if this already reserves appointments. Therefore not implemented yet/not published to GitHub. 
         public function getAppointmentPairs(){
             return false;
         }
