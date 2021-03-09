@@ -5,7 +5,7 @@
      * 
      * @author      Sebastian Fuhrmann <sebastian.fuhrmann@rz-fuhrmann.de>
      * @copyright   (C) 2020-2021 Rechenzentrum Fuhrmann Inh. Sebastian Fuhrmann
-     * @version     2021-03-01
+     * @version     2021-03-09
      * @license     MIT
      * 
      * Roadmap:
@@ -17,7 +17,6 @@
      * - add debug mode
      * - getAvailbilityByVaccinationCenterAndVaccine()?
      * - throw Exceptions
-     * - provide UserAgent
      */
 
     class Impftermine {
@@ -25,7 +24,13 @@
 
         private $endpointStatic = 'https://www.impfterminservice.de/assets/static/';
 
-        public function __construct(){
+        private $appname = null; 
+
+        public function __construct($appname){
+            if (!$appname || !is_string($appname) || strlen($appname) < 10 || $appname == "my-unique-appname"){
+                throw new Exception("Please set a unique App name in the constructor.");
+            }
+            $this->appname = $appname; 
             
         }
 
@@ -51,7 +56,18 @@
                 $res = json_decode(file_get_contents($cache_fn), true); 
             } else {
                 $ch = curl_init(); 
-                curl_setopt($ch, CURLOPT_URL, $url);
+
+                // 2021-03-09: Break cache since someone forgot to purge Akamai's cache so that impfterminservice.de responds with different JSONs randomly... 
+                curl_setopt($ch, CURLOPT_URL, $url.'?rrnd='.(time().rand(100000000,999999999999)));
+
+                // 2021-03-09: increasing timeout since *.impfterminservice.de takes ~5 min so send a response... 
+                // 5 mins
+                curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5*60); 
+                // 5 mins
+                curl_setopt($ch, CURLOPT_TIMEOUT, 5*60); 
+
+                curl_setopt($ch, CURLOPT_USERAGENT, $this->appname . ' - using https://github.com/rzfuhrmann/PHPImpftermine');
+
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
                 $raw = curl_exec($ch); 
                 $info = curl_getinfo($ch);
@@ -75,7 +91,9 @@
          */
         public function getVaccines (){
             $list = $this->doRequest(
-                        $this->endpointStatic.'its/vaccination-list.json', 
+                        //$this->endpointStatic.'its/vaccination-list.json', 
+                        // 2021-03-09: switching to 001-iz since impfterminservice seems to be broken... 
+                        'https://001-iz.impfterminservice.de/assets/static/its/vaccination-list.json',
                         array(
                             "cachingTime" => 60*60*24     // will not change that often ;)
                         )
