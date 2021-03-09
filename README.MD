@@ -4,7 +4,7 @@
 Proof of Concept (PoC) - so mostly incomplete and untested code - how a PHP wrapper for Impfterminservice could look like.
 
 ```PHP
-require_once '/var/www/rz/PHPImpftermine/impftermine.class.php';
+require_once 'impftermine.class.php';
 
 // replace "my-unique-appname" with an unique name for your application
 $impftermine = new Impftermine("my-unique-appname");
